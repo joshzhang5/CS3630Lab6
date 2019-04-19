@@ -35,8 +35,6 @@ import time
 
 from cozmo.util import distance_mm, degrees, speed_mmps
 
-from rrt import *
-
 #particle filter functionality
 class ParticleFilter:
 
@@ -139,7 +137,7 @@ async def marker_processing(robot, camera_settings, show_diagnostic_image=False)
 global camera_settings
 
 # pick up location for the robot to drive to, (x, y, theta)
-goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=135))
+goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=goal[135]))
 
 async def run(robot: cozmo.robot.Robot):
     global flag_odom_init, last_pose, goal_pose
@@ -169,13 +167,11 @@ async def run(robot: cozmo.robot.Robot):
     await look_around_until_converge(robot, 12)
 
     # intialize an explorer after localized
-    cosimo = CozmoExplorer(robot, x_0=last_pose.position.x, y_0=last_pose.position.y, theta_0=last_pose.rotation.angle_z.radians)
+    cosimo = CozmoExplorer(robot, x_0=last_pose.x, y_0=last_pose.y, theta_0=last_pose.heading)
     
     # move robot to pickup zone once localized
-    print("WE THINK WE ARE AT:", last_pose)
     directions = goal_pose - last_pose
-    print("SO WE GOING TO FOLLOW THIS:", directions)
-    await execute_directions(robot, directions)
+    execute_directions(directions)
     
     # recalculate where cosimo is
     cosimo.update_pose()

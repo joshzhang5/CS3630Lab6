@@ -35,8 +35,6 @@ import time
 
 from cozmo.util import distance_mm, degrees, speed_mmps
 
-from rrt import *
-
 #particle filter functionality
 class ParticleFilter:
 
@@ -139,7 +137,7 @@ async def marker_processing(robot, camera_settings, show_diagnostic_image=False)
 global camera_settings
 
 # pick up location for the robot to drive to, (x, y, theta)
-goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=135))
+goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=goal[135]))
 
 async def run(robot: cozmo.robot.Robot):
     global flag_odom_init, last_pose, goal_pose
@@ -169,13 +167,11 @@ async def run(robot: cozmo.robot.Robot):
     await look_around_until_converge(robot, 12)
 
     # intialize an explorer after localized
-    cosimo = CozmoExplorer(robot, x_0=last_pose.position.x, y_0=last_pose.position.y, theta_0=last_pose.rotation.angle_z.radians)
+    cosimo = CozmoExplorer(robot, x_0=last_pose.x, y_0=last_pose.y, theta_0=last_pose.heading)
     
     # move robot to pickup zone once localized
-    print("WE THINK WE ARE AT:", last_pose)
     directions = goal_pose - last_pose
-    print("SO WE GOING TO FOLLOW THIS:", directions)
-    await execute_directions(robot, directions)
+    execute_directions(directions)
     
     # recalculate where cosimo is
     cosimo.update_pose()
@@ -201,12 +197,25 @@ async def run(robot: cozmo.robot.Robot):
       await cosimo.go_to_goal(goal_node=pickup_node)  
 
 async def execute_directions(robot, directions):
-    await robot.turn_in_place(angle=directions.rotation.angle_z).wait_for_completed()
-    await robot.drive_straight(distance=distance_mm(directions.position.x * grid.scale), speed=speed_mmps(80)).wait_for_completed()     
+    await robot.turn_in_place(angle=translation_grid.rotation.angle_z).wait_for_completed()
+    if (await is_picked_up(robot)):
+        continue
+    await robot.drive_straight(distance=distance_mm(translation_grid.position.x * grid.scale), speed=speed_mmps(80)).wait_for_completed()
+    if (await is_picked_up(robot)):
+        continue        
     await robot.turn_in_place(angle=cozmo.util.Angle(degrees=90)).wait_for_completed()
-    await robot.drive_straight(distance=distance_mm(directions.position.y * grid.scale), speed=speed_mmps(80)).wait_for_completed()
+    if (await is_picked_up(robot)):
+        continue
+    await robot.drive_straight(distance=distance_mm(translation_grid.position.y * grid.scale), speed=speed_mmps(80)).wait_for_completed()
+    if (await is_picked_up(robot)):
+        continue
     await robot.turn_in_place(angle=cozmo.util.Angle(degrees=-90)).wait_for_completed()
+    if (await is_picked_up(robot)):
+        continue
     await robot_is_at_goal(robot)
+    if (await is_picked_up(robot)):
+        continue
+  
         
 async def look_around_until_converge(robot: cozmo.robot.Robot, turn_speed: 12):   
     
