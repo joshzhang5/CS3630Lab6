@@ -52,7 +52,9 @@ class CozMap:
         if ((node.x >= 0) and (node.y >= 0) and (node.x < self.width) and (node.y < self.height)):
             return True
         else:
+            print("NODE IS NOT IN BOUNDS")
             return False
+            
 
     def is_collision_with_obstacles(self, line_segment):
         """Check if a line segment intersects with any obstacles
@@ -84,6 +86,7 @@ class CozMap:
                     is_inside = False
                     break
             if is_inside:
+                print("NODE IS INSIDE OBSTACLE")
                 return True
         return False
 

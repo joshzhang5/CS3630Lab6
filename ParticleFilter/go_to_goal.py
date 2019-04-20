@@ -139,7 +139,7 @@ async def marker_processing(robot, camera_settings, show_diagnostic_image=False)
 global camera_settings
 
 # pick up location for the robot to drive to, (x, y, theta)
-goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=135))
+goal_pose = cozmo.util.Pose(6, 12, 0, angle_z=cozmo.util.Angle(degrees=0))
 
 async def run(robot: cozmo.robot.Robot):
     global flag_odom_init, last_pose, goal_pose
@@ -184,19 +184,24 @@ async def run(robot: cozmo.robot.Robot):
     
     while True:
       
-      cube = robot.world.wait_for_observed_light_cube(timeout=30)
+      cube = await robot.world.wait_for_observed_light_cube(timeout=30)
       print("Found cube: %s" % cube)
     
-      robot.pickup_object(cube, num_retries=5).wait_for_completed()
+      await robot.pickup_object(cube, num_retries=5).wait_for_completed()
       
       cosimo.update_pose()
+    #   stopevent = threading.Event()
+    #   visualizer = Visualizer(cmap)
+    #   visualizer.start()
+    #   stopevent.set();
     
       
       # rrt to drop zone and drop off cube
-      await cosimo.go_to_goal(goal_node=dropoff_node)  
-      robot.set_lift_height(0.0).wait_for_completed()
       
-         
+      await cosimo.go_to_goal(goal_node=dropoff_node)  
+      await robot.set_lift_height(0.0).wait_for_completed()
+      
+        
       # rrt to just in front of pick up zone
       await cosimo.go_to_goal(goal_node=pickup_node)  
 
@@ -205,8 +210,7 @@ async def execute_directions(robot, directions):
     await robot.drive_straight(distance=distance_mm(directions.position.x * grid.scale), speed=speed_mmps(80)).wait_for_completed()     
     await robot.turn_in_place(angle=cozmo.util.Angle(degrees=90)).wait_for_completed()
     await robot.drive_straight(distance=distance_mm(directions.position.y * grid.scale), speed=speed_mmps(80)).wait_for_completed()
-    await robot.turn_in_place(angle=cozmo.util.Angle(degrees=-90)).wait_for_completed()
-    await robot_is_at_goal(robot)
+    await robot.turn_in_place(angle=cozmo.util.Angle(degrees=45)).wait_for_completed()
         
 async def look_around_until_converge(robot: cozmo.robot.Robot, turn_speed: 12):   
     
@@ -246,7 +250,7 @@ async def look_around_until_converge(robot: cozmo.robot.Robot, turn_speed: 12):
 
 async def robot_is_at_goal(robot):
     global goal_pose
-    robot.play_anim(name="anim_poked_giggle").wait_for_completed()
+    await robot.play_anim(name="anim_poked_giggle").wait_for_completed()
     while not robot.is_picked_up:
        await asyncio.sleep(.1)
     await robot.say_text("Put me down!").wait_for_completed()

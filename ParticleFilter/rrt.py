@@ -11,6 +11,7 @@ import random
 import asyncio
 MAX_NODES = 20000
 
+
 def step_from_to(node0, node1, limit=75):
     ########################################################################
     # TODO: please enter your code below.
@@ -35,7 +36,6 @@ def step_from_to(node0, node1, limit=75):
         return Node((newX, newY))
     ############################################################################
 
-
 def node_generator(cmap):
     rand_node = None
     ############################################################################
@@ -52,7 +52,7 @@ def node_generator(cmap):
     return_goal = random.uniform(0, 1) < 0.05
     return random.choice(cmap.get_goals()) if return_goal else rand_node
 
-
+cmap = CozMap("map.json", node_generator)
 def RRT(cmap, start):
     cmap.add_node(start)
     map_width, map_height = cmap.get_size()
@@ -116,7 +116,7 @@ class CozmoExplorer:
         self.last_arena_pose = cozmo.util.Pose(x_0 * map_scale, y_0 * map_scale, 0, angle_z=cozmo.util.Angle(degrees=theta_0))
         self.goal_node = None 
         self.blocks_seen = {}
-    
+        
     async def go_to_goal(self, goal_node=None):
         global cmap
         if goal_node == None:
@@ -297,49 +297,49 @@ async def detect_cube_and_update_cmap(robot, marked, cozmo_pos):
     return update_cmap, goal_center
 
 
-class RobotThread(threading.Thread):
-    """Thread to run cozmo code separate from main thread
-    """
+# class RobotThread(threading.Thread):
+#     """Thread to run cozmo code separate from main thread
+#     """
 
-    def __init__(self):
-        threading.Thread.__init__(self, daemon=True)
+#     def __init__(self):
+#         threading.Thread.__init__(self, daemon=True)
 
-    def run(self):
-        # Please refrain from enabling use_viewer since it uses tk, which must be in main thread
-        cozmo.run_program(CozmoPlanning,use_3d_viewer=False, use_viewer=False)
-        stopevent.set()
-
-
-class RRTThread(threading.Thread):
-    """Thread to run RRT separate from main thread
-    """
-
-    def __init__(self):
-        threading.Thread.__init__(self, daemon=True)
-
-    def run(self):
-        while not stopevent.is_set():
-            RRT(cmap, cmap.get_start())
-            time.sleep(100)
-            cmap.reset()
-        stopevent.set()
+#     def run(self):
+#         # Please refrain from enabling use_viewer since it uses tk, which must be in main thread
+#         cozmo.run_program(CozmoPlanning,use_3d_viewer=False, use_viewer=False)
+#         stopevent.set()
 
 
-if __name__ == '__main__':
-    global cmap, stopevent
-    stopevent = threading.Event()
-    robotFlag = False
-    for i in range(0,len(sys.argv)):
-        if (sys.argv[i] == "-robot"):
-            robotFlag = True
-    if (robotFlag):
-        cmap = CozMap("maps/emptygrid.json", node_generator)
-        robot_thread = RobotThread()
-        robot_thread.start()
-    else:
-        cmap = CozMap("maps/map1.json", node_generator)
-        sim = RRTThread()
-        sim.start()
-    visualizer = Visualizer(cmap)
-    visualizer.start()
-    stopevent.set();
+# class RRTThread(threading.Thread):
+#     """Thread to run RRT separate from main thread
+#     """
+
+#     def __init__(self):
+#         threading.Thread.__init__(self, daemon=True)
+
+#     def run(self):
+#         while not stopevent.is_set():
+#             RRT(cmap, cmap.get_start())
+#             time.sleep(100)
+#             cmap.reset()
+#         stopevent.set()
+
+
+# if __name__ == '__main__':
+#     global cmap, stopevent
+#     stopevent = threading.Event()
+#     robotFlag = False
+#     for i in range(0,len(sys.argv)):
+#         if (sys.argv[i] == "-robot"):
+#             robotFlag = True
+#     if (robotFlag):
+#         cmap = CozMap("maps/emptygrid.json", node_generator)
+#         robot_thread = RobotThread()
+#         robot_thread.start()
+#     else:
+#         cmap = CozMap("maps/map1.json", node_generator)
+#         sim = RRTThread()
+#         sim.start()
+#     visualizer = Visualizer(cmap)
+#     visualizer.start()
+#     stopevent.set();
