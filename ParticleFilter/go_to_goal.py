@@ -73,13 +73,14 @@ class CozmoWarehouseWorker:
             [ 0,  0,  1]
         ], dtype=np.float)
 
-        self.pick_up_pose = Pose(x=4.5, y=9, z=0, angle_z=degrees(90))
-        self.drop_off_pose = Pose(x=21.75, y=11, z=0, angle_z=degrees(90))
-       
-        self.drop_off_directions = [Pose(x=3, y=4.5, z=0, angle_z=degrees(0)), Pose(x=21.75, y=4.5, z=0, angle_z=degrees(90)), self.drop_off_pose]
-        self.pick_up_directions = [Pose(x=21.75, y=4.5, z=0, angle_z=degrees(0)), Pose(x=3, y=4.5, z=0, angle_z=degrees(90)), self.pick_up_pose]
+        self.current_drop_off_pose_idx = 0
+        self.pick_up_pose = Pose(x=4.5, y=11, z=0, angle_z=degrees(90))
+        self.drop_off_poses = [Pose(x=22, y=11, z=0, angle_z=degrees(90)),  Pose(x=20, y=11, z=0, angle_z=degrees(90)),  Pose(x=18, y=11, z=0, angle_z=degrees(90))]
 
-        self.drive_speed = speed_mmps(80)
+        self.drop_off_directions = [Pose(x=5, y=6, z=0, angle_z=degrees(0)), Pose(x=22, y=6, z=0, angle_z=degrees(90)), self.drop_off_poses[0]]
+        self.pick_up_directions = [Pose(x=21.75, y=4.5, z=0, angle_z=degrees(0)), Pose(x=5, y=4.5, z=0, angle_z=degrees(90)), self.pick_up_pose]
+
+        self.drive_speed = speed_mmps(100)
        
         self.grid = CozGrid("map_arena.json")
         self.pf = ParticleFilter(self.grid)
@@ -94,9 +95,7 @@ class CozmoWarehouseWorker:
         self.gui.start()
 
     async def drive_to(self, directions):
-        print("-" * 100)
-        print("-" * 50 + "DRIVING" + "-" * 50)
-        print("-" * 100)
+        print_debug_header("DRIVING")
         if isinstance(directions, (list,)):
             for pose in directions:
                 await self.__drive_to_pose(pose)
@@ -136,9 +135,11 @@ class CozmoWarehouseWorker:
         
             
     def update_current_arena_pose(self):
-        print("-" * 100)
-        print("-" * 50 + "UPDATING POSE" + "-" * 50)
-        print("-" * 100)
+        print_debug_header("UPDATING CURRENT POSES")
+        if (self.robot.pose.origin_id != self.current_robot_pose):
+            print("WE WERE DELOCALIZED!")
+            self.localize()
+            
         coordinate_systems_diff = -self.pose_offset.degrees
         print("Started at arena pose: ", self.current_arena_pose, "\n\n")
         #print("Initial robot pose was: ", self.current_robot_pose)
@@ -159,15 +160,18 @@ class CozmoWarehouseWorker:
         print("Current arena pose is now: ", self.current_arena_pose, "\n\n")
     
     async def pick_up_cube(self, tries=5):
-        print("-" * 100)
-        print("-" * 50 + "GETTING CUBE" + "-" * 50)
-        print("-" * 100)
+        print_debug_header("PICKING UP CUBE")
         cube = None
-        turns = [0, -20, 20, 20, -20]
+        turns = [-30, 30, 30, -30] * 20
         for t in turns:
-            await self.robot.turn_in_place(angle=degrees(t)).wait_for_completed()
-            cube = await self.robot.world.wait_for_observed_light_cube(timeout=4)
-    
+            try:
+                cube = await self.robot.world.wait_for_observed_light_cube(timeout=1)
+                await self.robot.turn_in_place(angle=degrees(t)).wait_for_completed()
+                if (cube != None):
+                    print("Found a cube! ", cube)
+                    break
+            except:
+                continue
         if (cube == None):
             raise Exception("Could not find cube!")
         
@@ -176,23 +180,33 @@ class CozmoWarehouseWorker:
         if (picked_up_cube == None):
             print("Could not get the cube.")
             await self.robot.say_text("Help me!").wait_for_completed()
+            await self.robot.set_lift_height(1.0).wait_for_completed()
             asyncio.sleep(5)
         else:
             print("Picked up cube!")
        
-    
     async def set_down_cube(self):
-        print("-" * 100)
-        print("-" * 50 + "SETTING DOWN CUBE" + "-" * 50)
-        print("-" * 100)
+        print_debug_header("DROPPED")
+        # Drop the cube
         await self.robot.set_lift_height(0.0).wait_for_completed()
         await self.robot.set_head_angle(degrees(3)).wait_for_completed()
-   
+        print("Dropped off at pose ", self.current_drop_off_pose_idx)
+
+        # Store the old drop position
+        old_drop_off_position =  self.drop_off_poses[self.current_drop_off_pose_idx].position
+        
+        # Calculate the next drop position
+        self.current_drop_off_pose_idx = self.current_drop_off_pose_idx + 1 % 3
+        new_drop_off_position = self.drop_off_poses[self.current_drop_off_pose_idx].position
+        
+        # Set the second step to stop perpendicular to the next drop off location
+        self.drop_off_poses[1] = Pose(x=new_drop_off_position.x, y=old_drop_off_position.y, z=0, angle_z=degrees(90))
+        
+        # set the drop off location
+        self.drop_off_poses[2] = self.drop_off_poses[self.current_drop_off_pose_idx]
         
     async def localize(self, turn_angle=20):  
-        print("-" * 100) 
-        print("-" * 50 + "LOCALIZING" + "-" * 50)
-        print("-" * 100)
+        print_debug_header("LOCALIZING")
         # reset our location estimates
         conf = False
         self.current_arena_pose = Pose(0,0,0,angle_z=degrees(0))
@@ -290,8 +304,12 @@ async def run(robot: cozmo.robot.Robot):
     cosimo = CozmoWarehouseWorker(robot)
     await cosimo.localize()
     await cosimo.drive_to(cosimo.pick_up_pose)
+    initiated = False
     while True:
-        await cosimo.pick_up_cube(tries=1)
+        if not initiated:
+            await robot.say_text("Ready to rumble!").wait_for_completed()
+            initiated = True
+        await cosimo.pick_up_cube(tries=3)
         await cosimo.drive_to(cosimo.drop_off_directions)
         await cosimo.set_down_cube()
         await cosimo.drive_to(cosimo.pick_up_directions)

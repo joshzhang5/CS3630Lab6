@@ -166,6 +166,12 @@ def convertPoseFromMmToInches(pose):
 def convertInchesToPose(position):
     return cozmo.util.Pose(x=position[0], y=position[1], z=0, angle_z=cozmo.util.Angle(degrees=position[2]))
     
+
+def print_debug_header(text):
+    print("-" * 80)
+    print("-" * 20 + text + "-" * (60 - len(text)))
+    print("-" * 80)
+
 if __name__ == '__main__':
     p1, q1 = Node((1, 1)), Node((10, 1))
     p2, q2 = Node((1, 2)), Node((10, 2))
